@@ -69,9 +69,30 @@ Then, in each file you copied:
 - Repoint or delete the template's relative links. They resolve inside this
   clone and will not resolve inside your repository.
 
-Before committing, check that no `<angle-bracket placeholder>` from the skeleton
-survived. HTML comments — including the `intent:consultation-rule` sentinels —
-are not placeholders; they are markers a tool looks for.
+For what a filled-in file looks like in the wild, read
+[`examples/ordinary-repo/AGENTS.md`](examples/ordinary-repo/AGENTS.md). It is a
+worked example rather than a completed copy of this template — the sections are
+reordered and it carries a handbook pointer block — so read it for shape and
+altitude, not as a diff target.
+
+Before committing, check that no placeholder from the skeleton survived. The two
+template sets mark them differently, so one grep is not enough:
+
+- `templates/repo/` uses `<angle-bracket placeholders>`. Grep for `<` and `>`,
+  but read each hit rather than trusting the count: real content legitimately
+  uses angle brackets, so a rule that writes `<dir>` or `<sha256[:16]>` is not a
+  leftover placeholder.
+- `templates/global/` uses `<!-- Placeholder: ... -->` HTML comments. Those
+  contain no angle-bracket placeholder, so that grep passes straight over them.
+  Step 2 explains what they cost you if they stay.
+
+Sentinel comments are not placeholders, and the two kinds are not alike.
+`<!-- handbook-pointer:start -->` / `:end` brackets bytes a shipped tool derives
+and will overwrite. `<!-- intent:consultation-rule -->` brackets content **you**
+write: [`docs/08-cross-cutting-docs.md`](docs/08-cross-cutting-docs.md) makes it
+human-owned and requires a stamp to leave those bytes identical. No tool in this
+tree reads the consultation-rule sentinel — it is a convention for humans and
+agents — so you edit inside it freely.
 
 `INTENT.md` is worth its file when a repository has a reason to exist that a
 reader cannot infer from the code, and when you want an agent to judge a
@@ -79,7 +100,11 @@ proposed change against that reason rather than against the diff alone.
 `WORKLOG.md` is worth its file when more than one session — or more than one
 agent — will work in the repository, because it is the cheapest handover that
 exists. Skip either one without guilt; neither is load-bearing for the other
-two files.
+two files. **If you skip one, delete the section of your `AGENTS.md` that points
+at it.** `templates/repo/AGENTS.md` carries an `intent:consultation-rule` block
+naming `INTENT.md`, so skipping the file while keeping the block ships a pointer
+at something that does not exist — which
+[`docs/07-instruction-files.md`](docs/07-instruction-files.md) forbids outright.
 
 ### Step 2 — your machine
 
@@ -87,7 +112,13 @@ Only once step 1 has worked in a real session. Copy the four global files to the
 destinations the table in `docs/07` names, then:
 
 - Fill in your own policy in the canonical file. Delete the section guidance you
-  do not use.
+  do not use, and delete every `<!-- Placeholder: ... -->` comment along with
+  it — that is the form step 1's angle-bracket grep cannot catch. In pi those
+  comments are sent to the model and billed as tokens on every session; Claude
+  Code strips block comments before injection, so it will never show you the
+  evidence that they are still there.
+- Completion check for this layer: grepping your canonical file for
+  `Placeholder:` returns nothing.
 - Confirm the overlay's import line resolves to wherever your canonical file
   actually landed. How import paths resolve is owned by
   [`docs/09-claude-code.md`](docs/09-claude-code.md) § *The `@`-import
@@ -102,6 +133,16 @@ If pi is your only harness, the table gives you a choice about where the
 canonical file lives. Take it deliberately: two independent global policy files
 that both load is the duplication failure in its most common real form.
 
+The pi overlay is the one copy with a trap in it. Its own fenced header says
+`Copy to: ~/.pi/agent/AGENTS.md`, and `docs/07`'s table says do **not** copy it
+over your canonical file. Both are right, and the reconciliation is the step
+that is easy to miss: if your canonical policy lives at `~/AGENTS.md`, then
+`~/.pi/agent/AGENTS.md` must *begin* with a one-line prose pointer telling the
+model to treat `~/AGENTS.md` as policy, with the overlay's mechanics underneath
+it, because pi has no `@`-import. Copy the file verbatim, omit the pointer, and
+you get a silent half-working setup — mechanics load, policy never does, and
+nothing reports the difference.
+
 ### Step 3 — a handbook (only if you need one)
 
 Read [`docs/08-cross-cutting-docs.md`](docs/08-cross-cutting-docs.md) first; it
@@ -109,8 +150,10 @@ owns the pattern and the stamping mechanism.
 [`examples/handbook/`](examples/handbook/) is a runnable demonstration and
 [`examples/ordinary-repo/`](examples/ordinary-repo/) is the repository that
 points at it. Copy both, or neither — the pattern does not work half-applied,
-because the pointer block between the sentinels is *derived*. Hand-editing
-inside the sentinels is exactly what the next stamping run overwrites.
+because the pointer block between the `handbook-pointer` sentinels is *derived*
+by `examples/handbook/tools/stamp-pointers.py`. Hand-editing inside that pair is
+exactly what the next stamping run overwrites. The `intent:consultation-rule`
+pair is the opposite case: human-owned, and a stamp must leave it identical.
 
 ### Step 4 — prove it loaded
 
@@ -118,16 +161,41 @@ A file you wrote is not a file the harness read. Check it, because the failure
 is silent: an instruction file at the wrong path loads nothing and reports
 nothing.
 
-- **Claude Code:** run `/context` in a session started in your repository and
-  confirm your `AGENTS.md` content appears under Memory files — that is the shim
-  working. `/memory` lists the locations across scopes. Both commands and what
-  they show are documented in
+- **Claude Code:** run `/context` in a session started in your repository —
+  headless, that is `claude -p "/context"` from the repository's directory. Look
+  for your `AGENTS.md` in the Memory files list. It appears as a **path and a
+  token count**, not as its contents, so the evidence is that the path is
+  listed: a `CLAUDE.md` shim that works pulls `AGENTS.md` in beside it, and one
+  that does not leaves `AGENTS.md` absent. `/memory` lists the locations across
+  scopes. Both commands are documented in
   [`docs/09-claude-code.md`](docs/09-claude-code.md).
-- **pi:** put a short unique marker line in the file you copied, start a session
-  in that directory, and ask the model to repeat the marker. Then re-run with
-  `--no-context-files` and confirm it cannot. The difference is your evidence
-  that the file loads, and that the marker came from the file rather than from
-  your prompt.
+- **pi:** put a probe line in the file you copied — a made-up fact nobody could
+  guess, for example `Adoption probe: the colour is cerulean.` Then run the pair,
+  **both with tools disabled**:
+
+  ```bash
+  pi -p -nt "What colour is the adoption probe?"                     # expect: cerulean
+  pi -p -nt --no-context-files "What colour is the adoption probe?"  # expect: cannot answer
+  ```
+
+  The difference between the two runs is your evidence. Three things break this
+  check if you skip them:
+
+  - **`-nt` is required on both legs.** With tools enabled the model can simply
+    `read` the file from disk, so it answers correctly even under
+    `--no-context-files` and your control leg proves nothing at all.
+  - **Ask a question; do not ask the model to quote its instructions.** Some
+    models refuse verbatim quotation of loaded instructions, and that refusal
+    looks exactly like "the file did not load" — it will send you debugging the
+    wrong thing.
+  - **Do not judge by exit code.** pi exits 0 even when the provider returns a
+    hard error, so a quota failure looks like a passing run. Read the output.
+
+  If the control leg *can* still answer, the differential failed rather than the
+  file: re-check that `-nt` is on both legs before concluding anything about
+  loading.
+- **Delete the probe line when you are done.** It is a test fixture, and leaving
+  it ships a nonsense rule into a file the harness loads on every session.
 
 **Failure prevented:** believing a rule is in force because you wrote it down,
 and debugging agent behaviour for an hour before suspecting that the file was
@@ -234,44 +302,87 @@ Read these in full, in this order, before writing anything:
 3. Each template file you are about to copy.
 
 Scope for this run:
-- Layers to set up:            <per-repo | global | handbook>
+- Layers to set up:            <any of: per-repo, global, handbook>
+- Optional repo files I want:  <INTENT.md, WORKLOG.md, or neither>
 - Target repositories:         <paths>
 - Harnesses I actually use:    <pi | Claude Code | both>
 
-For each layer in scope: copy every shipped template to the destination the
-table names, then in the copy replace every <angle-bracket placeholder> with
-content you derived from my real environment, delete the sections I do not use,
-delete the template's own header comment block, and repoint or delete the
-template's relative links (they resolve inside the clone, not inside my
-repository).
+For each layer in scope: copy each template that applies to the layers and the
+optional files I named, to the destination the table names. Skip templates I did
+not ask for. When you skip INTENT.md, also delete the intent:consultation-rule
+block from the AGENTS.md you write, so no pointer aims at a file that does not
+exist.
+
+Then in each copy: replace every placeholder with content you derived from my
+real environment. The repo templates mark them <like this>; the global templates
+mark them <!-- Placeholder: like this -->, and both forms must go. Delete the
+sections I do not use — the test is whether you have anything real to put in
+them, not whether the section is a good idea in the abstract. Delete the
+template's own header comment block, and any mid-file guidance comment such as
+the entry-format block in WORKLOG.md. Repoint or delete the template's relative
+links; they resolve inside the clone, not inside my repository.
 
 Constraints:
+- Check whether each destination already exists BEFORE writing it. If it does,
+  stop and ask me, showing me what is already there. Never replace an existing
+  instruction file, and never merge into one, without my go-ahead: an existing
+  AGENTS.md, CLAUDE.md, or harness configuration file is my policy, and
+  overwriting it destroys work you cannot reconstruct. This applies to
+  repository roots exactly as much as to my home directory.
+- Ask me before writing into my home directory or any harness configuration
+  path, and wait for the answer. Announcing what you are about to write and then
+  writing it in the same turn is not asking.
 - Ask me before inventing policy I have not stated. Deriving content from my
   repository, my existing configuration, and my answers is the job; writing
   rules you think I should have is not.
-- Show me the destination path and the file content before writing anything
-  into my home directory or into a harness configuration path.
+- Some placeholders cannot be derived at all — INTENT.md is my own statement of
+  why the repository exists, and no amount of reading my code produces it. Ask me
+  for those. If I do not answer, leave the placeholder in place and list it in
+  your report. Never fabricate content for a placeholder you could not fill, and
+  never leave the template's example text in place as though it were mine.
 - Keep policy in the canonical file for its scope and mechanics in the overlay
   for one harness. Where a second surface needs the same policy, it points at
   the canonical file instead of copying it. Apply the per-line test in
   docs/07-instruction-files.md rather than your own judgement about which file
   a line belongs in.
-- Do not hand-edit inside a sentinel pair; those bytes are derived.
+- If my canonical policy lives at ~/AGENTS.md, then ~/.pi/agent/AGENTS.md must
+  begin with a one-line prose pointer telling the model to treat ~/AGENTS.md as
+  policy, with the overlay mechanics underneath it, because pi has no @-import.
+  Copying the overlay verbatim without that pointer loads mechanics and never
+  loads policy, silently.
+- Only handbook-pointer sentinel pairs are derived, so do not hand-edit inside
+  those. The intent:consultation-rule pair is human-owned content you write.
 
-Then verify the files actually load, and show me the evidence:
-- Claude Code: run /context in a session started in the target repository and
-  confirm the AGENTS.md content appears under Memory files.
-- pi: confirm a unique marker line you placed in the copied file can be
-  repeated by the model in a normal session and cannot with --no-context-files.
-A file that was written but never loaded is not finished.
+Then verify the files actually load, and show me the evidence. A file that was
+written but never loaded is not finished, and a positive leg on its own is not
+evidence — the control leg has to fail.
+- Claude Code: run `claude -p "/context"` from the target repository's
+  directory. Your AGENTS.md appears in the Memory files list as a path and a
+  token count, not as its contents; the evidence is that the path is listed.
+- pi: add a probe line to the file you wrote, for example
+  "Adoption probe: the colour is cerulean", then run BOTH of these and show me
+  both outputs:
+      pi -p -nt "What colour is the adoption probe?"
+      pi -p -nt --no-context-files "What colour is the adoption probe?"
+  The first must answer and the second must not. -nt is required on both legs:
+  with tools enabled the model can read the file from disk, so the control leg
+  answers anyway and proves nothing. Ask the question in that form — some models
+  refuse to quote their instructions verbatim, and that refusal looks exactly
+  like a file that did not load. Do not judge by exit code: pi exits 0 even on a
+  hard provider error.
+  If the control leg still answers, the differential failed rather than the
+  file. Re-check -nt on both legs before reporting anything about loading.
+- Delete the probe line before you finish. It is a test fixture, and leaving it
+  ships a nonsense rule into a file the harness loads every session.
 
-Report: every destination path you wrote, what you changed in each, which
-placeholders you could not fill and why, and the verification output.
+Report: every destination path you wrote, what already existed there and what
+you asked me about, what you changed in each file, which placeholders you could
+not fill and why, and the verification output from both legs.
 ```
 
 **Failure prevented:** an agent that copies templates to plausible paths, fills
-placeholders with invented policy, and reports success without ever confirming
-that a harness read the result.
+placeholders with invented policy, overwrites the instruction files you already
+had, and reports success without ever confirming that a harness read the result.
 
 ## Where each claim in this file comes from
 
