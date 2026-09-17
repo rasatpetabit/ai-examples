@@ -1,0 +1,33 @@
+{
+  "handbook": {
+    "id": "example-handbook",
+    "description": "Genericized cross-cutting documentation for the sibling example repositories in this template. Paths are relative to this file's directory."
+  },
+  "pointer": {
+    "sentinels": {
+      "start": "<!-- handbook-pointer:start -->",
+      "end": "<!-- handbook-pointer:end -->"
+    },
+    "target_file": "AGENTS.md",
+    "leaf": "docs/boundaries/index.md",
+    "stamper": "tools/stamp-pointers.py"
+  },
+  "repositories": [
+    {
+      "id": "ordinary-example",
+      "name": "ordinary-repo",
+      "kind": "implementation",
+      "path": "../ordinary-repo",
+      "pointer_file": "AGENTS.md",
+      "notes": "The sibling runnable example. The stamper refreshes its pointer block from this handbook's boundaries index."
+    },
+    {
+      "id": "example-handbook",
+      "name": "handbook",
+      "kind": "handbook",
+      "path": ".",
+      "pointer_file": null,
+      "notes": "This repository. It is the owner of navigation and inventory; it is not a pointer target of itself."
+    }
+  ]
+}

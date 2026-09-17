@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {"id":"anti-pinning","owner":"README.md",
+     "topic":"(version|model)\\s+(number|name)|pin(?:ned|ning)?\\s+(?:a\\s+)?(?:version|model)|go(?:es)?\\s+stale"},
+    {"id":"import-syntax","owner":"docs/09-claude-code.md",
+     "topic":"@-?import|@path/to/file"},
+    {"id":"split-rule","owner":"docs/07-instruction-files.md",
+     "topic":"canonical\\s+file|go(?:es)?\\s+in\\s+the\\s+canonical"}
+  ]
+}
